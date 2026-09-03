@@ -1,0 +1,72 @@
+{
+  "name": "wiretappp-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WIRETAPPP desktop shell",
+  "author": "WIRETAPPP",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "icons": "../.venv/bin/python scripts/generate-icons.py || python3 scripts/generate-icons.py",
+    "pack": "electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "^34.5.8",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.wiretappp.app",
+    "productName": "WIRETAPPP",
+    "copyright": "Copyright © 2026 WIRETAPPP",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.cjs",
+      "package.json",
+      "build/icon.png",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../frontend/dist",
+        "to": "frontend/dist",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../backend",
+        "to": "wiretappp/backend",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "build/python-env",
+        "to": "wiretappp/python-env",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../config.yaml",
+        "to": "wiretappp/config.yaml.default"
+      }
+    ],
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "target": ["dmg", "zip"]
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Development",
+      "target": ["AppImage", "deb"]
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": ["nsis", "zip"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

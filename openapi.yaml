@@ -1,0 +1,981 @@
+openapi: 3.1.0
+info:
+  title: WIRETAPPP Passive MITM Capture API
+  version: 1.1.0
+  description: |
+    本机被动流量捕获与查询 REST API。Electron 客户端与 MCP 服务均通过此接口访问数据。
+    默认 Base URL：`http://127.0.0.1:18760`（以 `config.yaml` 中 `api_port` 为准）。
+servers:
+  - url: http://127.0.0.1:18760
+    description: 本机默认 API（config.yaml api_port）
+tags:
+  - name: system
+    description: 健康检查与证书
+  - name: query
+    description: 流量查询与统计
+  - name: capture
+    description: 捕获进程控制
+  - name: settings
+    description: 运行配置
+  - name: projects
+    description: 项目与看板
+  - name: recon
+    description: 端点目录、站点地图与渗透 recon（Agent 优先使用）
+
+paths:
+  /api/health:
+    get:
+      tags: [system]
+      summary: 健康检查
+      operationId: getHealth
+      responses:
+        "200":
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/ca-cert:
+    get:
+      tags: [system]
+      summary: 下载 mitm CA 证书
+      operationId: getCaCert
+      responses:
+        "200":
+          description: PEM 证书文件
+          content:
+            application/x-pem-file:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: CA 尚未生成
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /api/stats:
+    get:
+      tags: [query]
+      summary: 全局捕获统计
+      operationId: getStats
+      responses:
+        "200":
+          description: 统计信息
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsResponse"
+
+  /api/hosts:
+    get:
+      tags: [query]
+      summary: 已捕获 Host 列表
+      operationId: listHosts
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Host 列表（按捕获量降序）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: string
+
+  /api/packets:
+    get:
+      tags: [query]
+      summary: 查询唯一键或原始报文
+      operationId: queryPackets
+      description: |
+        不传 `unique_key` 时返回唯一键聚合（mode=keys）；
+        传入 `unique_key`（MD5 指纹）时返回原始报文（mode=raw）。
+      parameters:
+        - $ref: "#/components/parameters/Host"
+        - $ref: "#/components/parameters/StartTime"
+        - $ref: "#/components/parameters/EndTime"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/ProjectId"
+        - name: unique_key
+          in: query
+          description: MD5 指纹；传入则切换为原始报文模式
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 查询结果
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PacketKeysResponse"
+                  - $ref: "#/components/schemas/PacketRawResponse"
+
+  /api/endpoints:
+    get:
+      tags: [recon]
+      summary: 端点目录（结构化 API 地图）
+      operationId: listEndpoints
+      description: Agent 首选接口。返回 method/path/参数名/指纹等，不含完整 raw 报文。
+      parameters:
+        - $ref: "#/components/parameters/Host"
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - name: method
+          in: query
+          schema:
+            type: string
+        - name: path_contains
+          in: query
+          schema:
+            type: string
+        - name: q
+          in: query
+          description: 搜索 path / host / key_label
+          schema:
+            type: string
+        - name: since
+          in: query
+          description: 仅 first_seen >= since
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [last_seen, first_seen, hit_count]
+            default: last_seen
+      responses:
+        "200":
+          description: 端点列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EndpointListResponse"
+
+  /api/endpoints/new:
+    get:
+      tags: [recon]
+      summary: 新发现端点（自某时间以来首次出现）
+      operationId: listNewEndpoints
+      parameters:
+        - name: since
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/Host"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: 新端点列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewEndpointListResponse"
+        "422":
+          description: since 无效
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /api/endpoints/describe:
+    get:
+      tags: [recon]
+      summary: 端点详情与脱敏样本
+      operationId: describeEndpoint
+      parameters:
+        - name: fingerprint
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: host
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/ProjectId"
+        - name: include_raw
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: 端点详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EndpointDetail"
+        "404":
+          description: 端点不存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /api/sitemap:
+    get:
+      tags: [recon]
+      summary: Host → Method → Path 站点地图
+      operationId: getSitemap
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/Host"
+      responses:
+        "200":
+          description: 站点地图
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SitemapResponse"
+
+  /api/recon:
+    get:
+      tags: [recon]
+      summary: 项目一键 recon（聚合）
+      operationId: reconProject
+      description: 返回项目信息、host 列表、sitemap 摘要、Top 端点、可选新端点。
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: since
+          in: query
+          schema:
+            type: string
+        - name: top
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Recon 报告
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconResponse"
+        "404":
+          description: 项目不存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /api/capture/status:
+    get:
+      tags: [capture]
+      summary: 捕获进程状态
+      operationId: getCaptureStatus
+      responses:
+        "200":
+          description: 当前捕获状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaptureStatus"
+
+  /api/capture/start:
+    post:
+      tags: [capture]
+      summary: 启动或恢复捕获
+      operationId: startCapture
+      description: mitm 未运行时启动进程；已运行则清除暂停并恢复入库。
+      responses:
+        "200":
+          description: 启动成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaptureStatus"
+        "500":
+          description: mitm 启动失败
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /api/capture/pause:
+    post:
+      tags: [capture]
+      summary: 暂停入库
+      operationId: pauseCapture
+      description: 代理继续监听，但不再写入数据库。
+      responses:
+        "200":
+          description: 已暂停
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaptureStatus"
+        "409":
+          description: 捕获进程未运行
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /api/capture/resume:
+    post:
+      tags: [capture]
+      summary: 恢复入库
+      operationId: resumeCapture
+      responses:
+        "200":
+          description: 已恢复
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaptureStatus"
+        "409":
+          description: 捕获进程未运行
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /api/capture/stop:
+    post:
+      tags: [capture]
+      summary: 停止 mitm 捕获
+      operationId: stopCapture
+      responses:
+        "200":
+          description: 已停止
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaptureStatus"
+
+  /api/settings:
+    get:
+      tags: [settings]
+      summary: 读取配置
+      operationId: getSettings
+      responses:
+        "200":
+          description: 当前配置
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+    put:
+      tags: [settings]
+      summary: 更新配置
+      operationId: updateSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsUpdate"
+      responses:
+        "200":
+          description: 配置已保存
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsUpdateResponse"
+        "422":
+          description: 参数校验失败
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /api/dashboard:
+    get:
+      tags: [projects]
+      summary: 项目看板
+      operationId: getDashboard
+      responses:
+        "200":
+          description: 项目列表及统计
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardResponse"
+
+  /api/projects:
+    get:
+      tags: [projects]
+      summary: 项目列表
+      operationId: listProjects
+      responses:
+        "200":
+          description: 项目列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Project"
+    post:
+      tags: [projects]
+      summary: 创建项目
+      operationId: createProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectCreate"
+      responses:
+        "200":
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetail"
+        "400":
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /api/projects/{project_id}:
+    get:
+      tags: [projects]
+      summary: 项目详情
+      operationId: getProject
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdPath"
+      responses:
+        "200":
+          description: 项目详情（含统计）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetail"
+        "404":
+          description: 项目不存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+    delete:
+      tags: [projects]
+      summary: 删除项目
+      operationId: deleteProject
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdPath"
+      responses:
+        "200":
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, deleted]
+                properties:
+                  ok:
+                    type: boolean
+                  deleted:
+                    $ref: "#/components/schemas/Project"
+        "404":
+          description: 项目不存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+  /api/projects/{project_id}/hosts:
+    get:
+      tags: [projects]
+      summary: 项目范围内 Host 列表
+      operationId: getProjectHosts
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdPath"
+      responses:
+        "200":
+          description: Host 列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: string
+        "404":
+          description: 项目不存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
+components:
+  parameters:
+    Host:
+      name: host
+      in: query
+      schema:
+        type: string
+      description: 按 host 精确过滤
+    StartTime:
+      name: start
+      in: query
+      schema:
+        type: string
+      description: 开始时间（UTC+8，ISO8601）
+    EndTime:
+      name: end
+      in: query
+      schema:
+        type: string
+      description: 结束时间（UTC+8，ISO8601）
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: page_size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    ProjectId:
+      name: project_id
+      in: query
+      schema:
+        type: integer
+      description: 按项目域名范围过滤
+    ProjectIdPath:
+      name: project_id
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  schemas:
+    ErrorDetail:
+      type: object
+      properties:
+        detail:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+
+    HealthResponse:
+      type: object
+      required: [ok, api_host, api_port, local_url]
+      properties:
+        ok:
+          type: boolean
+        api_host:
+          type: string
+        api_port:
+          type: integer
+        local_url:
+          type: string
+        lan_urls:
+          type: array
+          items:
+            type: string
+        bind_host:
+          type: string
+        port:
+          type: integer
+
+    StatsResponse:
+      type: object
+      properties:
+        packet_count:
+          type: integer
+        unique_key_count:
+          type: integer
+        host_count:
+          type: integer
+        latest_captured_at:
+          type: string
+          nullable: true
+
+    CaptureStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [running, paused, stopped]
+        paused:
+          type: boolean
+        pid:
+          type: integer
+          nullable: true
+        listen_host:
+          type: string
+        listen_port:
+          type: integer
+        ca_cert_ready:
+          type: boolean
+        ca_cert_path:
+          type: string
+          nullable: true
+        static_suffixes:
+          type: array
+          items:
+            type: string
+
+    Settings:
+      type: object
+      properties:
+        listen_host:
+          type: string
+        listen_port:
+          type: integer
+        api_host:
+          type: string
+        api_port:
+          type: integer
+        static_suffixes:
+          type: array
+          items:
+            type: string
+        max_body_bytes:
+          type: integer
+
+    SettingsUpdate:
+      type: object
+      properties:
+        listen_host:
+          type: string
+        listen_port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        api_host:
+          type: string
+        api_port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        static_suffixes:
+          type: array
+          items:
+            type: string
+        max_body_bytes:
+          type: integer
+          minimum: 1024
+
+    SettingsUpdateResponse:
+      type: object
+      properties:
+        settings:
+          $ref: "#/components/schemas/Settings"
+        mitm_restarted:
+          type: boolean
+        message:
+          type: string
+        capture:
+          $ref: "#/components/schemas/CaptureStatus"
+
+    PacketKeyItem:
+      type: object
+      properties:
+        unique_key:
+          type: string
+          description: MD5 指纹
+        key_label:
+          type: string
+          description: 可读接口描述
+        host:
+          type: string
+        first_seen:
+          type: string
+        last_seen:
+          type: string
+        hit_count:
+          type: integer
+
+    PacketKeysResponse:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [keys]
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PacketKeyItem"
+
+    PacketRawItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        first_seen:
+          type: string
+        captured_at:
+          type: string
+        host:
+          type: string
+        unique_key:
+          type: string
+        key_label:
+          type: string
+        method:
+          type: string
+        path:
+          type: string
+        raw_packet:
+          type: string
+        hit_count:
+          type: integer
+
+    PacketRawResponse:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [raw]
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PacketRawItem"
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        domains:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+
+    ProjectDetail:
+      allOf:
+        - $ref: "#/components/schemas/Project"
+        - type: object
+          properties:
+            subdomain_count:
+              type: integer
+            unique_key_count:
+              type: integer
+            packet_count:
+              type: integer
+
+    ProjectCreate:
+      type: object
+      required: [name, domains]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        domains:
+          type: array
+          minItems: 1
+          items:
+            type: string
+
+    DashboardResponse:
+      type: object
+      properties:
+        project_count:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectDetail"
+
+    EndpointItem:
+      type: object
+      properties:
+        fingerprint:
+          type: string
+        unique_key:
+          type: string
+        key_label:
+          type: string
+        host:
+          type: string
+        method:
+          type: string
+        path:
+          type: string
+        url_param_names:
+          type: array
+          items:
+            type: string
+        body_param_names:
+          type: array
+          items:
+            type: string
+        first_seen:
+          type: string
+        last_seen:
+          type: string
+        hit_count:
+          type: integer
+
+    EndpointListResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EndpointItem"
+
+    NewEndpointListResponse:
+      allOf:
+        - $ref: "#/components/schemas/EndpointListResponse"
+        - type: object
+          properties:
+            since:
+              type: string
+
+    EndpointSample:
+      type: object
+      properties:
+        captured_at:
+          type: string
+        packet_id:
+          type: integer
+        redacted_packet:
+          type: string
+        raw_packet:
+          type: string
+
+    EndpointDetail:
+      allOf:
+        - $ref: "#/components/schemas/EndpointItem"
+        - type: object
+          properties:
+            status_codes:
+              type: object
+              additionalProperties:
+                type: integer
+            content_types:
+              type: array
+              items:
+                type: string
+            auth_headers:
+              type: array
+              items:
+                type: string
+            sample:
+              nullable: true
+              allOf:
+                - $ref: "#/components/schemas/EndpointSample"
+
+    SitemapPathEntry:
+      type: object
+      properties:
+        path:
+          type: string
+        fingerprint:
+          type: string
+        key_label:
+          type: string
+        hit_count:
+          type: integer
+
+    SitemapResponse:
+      type: object
+      properties:
+        project_id:
+          type: integer
+          nullable: true
+        host_filter:
+          type: string
+          nullable: true
+        host_count:
+          type: integer
+        endpoint_count:
+          type: integer
+        hosts:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: array
+              items:
+                $ref: "#/components/schemas/SitemapPathEntry"
+
+    ReconResponse:
+      type: object
+      properties:
+        project:
+          $ref: "#/components/schemas/ProjectDetail"
+        hosts:
+          type: array
+          items:
+            type: string
+        sitemap_summary:
+          type: object
+          properties:
+            host_count:
+              type: integer
+            endpoint_count:
+              type: integer
+            hosts:
+              type: array
+              items:
+                type: string
+        top_endpoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/EndpointItem"
+        new_endpoints_since:
+          type: string
+          nullable: true
+        new_endpoints:
+          type: array
+          nullable: true
+          items:
+            $ref: "#/components/schemas/EndpointItem"
