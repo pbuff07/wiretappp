@@ -25,9 +25,11 @@ Go 实现的 [Model Context Protocol](https://modelcontextprotocol.io/) 服务�
 
 ## 环境变量
 
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
+
+| 变量                  | 默认值                      | 说明                     |
+| ------------------- | ------------------------ | ---------------------- |
 | `WIRETAPPP_API_URL` | `http://127.0.0.1:18760` | WIRETAPPP API Base URL |
+
 
 ## Cursor 配置
 
@@ -50,50 +52,58 @@ Go 实现的 [Model Context Protocol](https://modelcontextprotocol.io/) 服务�
 
 ### Recon — 渗透分析首选
 
-| Tool | 对应 API | 说明 |
-| --- | --- | --- |
-| **`wiretappp_recon_project`** | `GET /api/recon` | 项目一键 recon：hosts + Top 端点 + sitemap 摘要 |
-| **`wiretappp_list_endpoints`** | `GET /api/endpoints` | 结构化端点目录（API 地图），支持搜索与过滤 |
-| **`wiretappp_describe_endpoint`** | `GET /api/endpoints/describe` | 端点详情 + 脱敏样本（status_codes、auth_headers） |
-| **`wiretappp_sitemap`** | `GET /api/sitemap` | Host → Method → Path 站点地图 |
-| **`wiretappp_whats_new`** | `GET /api/endpoints/new` | 自某时间以来新出现的端点 |
+
+| Tool                              | 对应 API                        | 说明                                     |
+| --------------------------------- | ----------------------------- | -------------------------------------- |
+| `**wiretappp_recon_project**`     | `GET /api/recon`              | 项目一键 recon：hosts + Top 端点 + sitemap 摘要 |
+| `**wiretappp_list_endpoints**`    | `GET /api/endpoints`          | 结构化端点目录（API 地图），支持搜索与过滤                |
+| `**wiretappp_describe_endpoint**` | `GET /api/endpoints/describe` | 端点详情 + 脱敏样本（status_codes、auth_headers） |
+| `**wiretappp_sitemap**`           | `GET /api/sitemap`            | Host → Method → Path 站点地图              |
+| `**wiretappp_whats_new**`         | `GET /api/endpoints/new`      | 自某时间以来新出现的端点                           |
+
 
 ### 流量明细 — 次选
 
-| Tool | 对应 API | 说明 |
-| --- | --- | --- |
+
+| Tool                          | 对应 API                            | 说明                            |
+| ----------------------------- | --------------------------------- | ----------------------------- |
 | `wiretappp_query_raw_packets` | `GET /api/packets?unique_key=...` | 原始 HTTP 报文（数据量大，优先用 describe） |
-| `wiretappp_query_packet_keys` | `GET /api/packets`（keys 模式） | 低层唯一键列表，一般优先 `list_endpoints` |
+| `wiretappp_query_packet_keys` | `GET /api/packets`（keys 模式）       | 低层唯一键列表，一般优先 `list_endpoints` |
+
 
 ### 项目与范围
 
-| Tool | 对应 API |
-| --- | --- |
-| `wiretappp_list_projects` | `GET /api/projects` |
-| `wiretappp_get_project` | `GET /api/projects/{id}` |
+
+| Tool                      | 对应 API                         |
+| ------------------------- | ------------------------------ |
+| `wiretappp_list_projects` | `GET /api/projects`            |
+| `wiretappp_get_project`   | `GET /api/projects/{id}`       |
 | `wiretappp_project_hosts` | `GET /api/projects/{id}/hosts` |
-| `wiretappp_list_hosts` | `GET /api/hosts` |
-| `wiretappp_dashboard` | `GET /api/dashboard` |
+| `wiretappp_list_hosts`    | `GET /api/hosts`               |
+| `wiretappp_dashboard`     | `GET /api/dashboard`           |
+
 
 ### 服务状态（只读）
 
-| Tool | 对应 API |
-| --- | --- |
-| `wiretappp_health` | `GET /api/health` |
-| `wiretappp_stats` | `GET /api/stats` |
-| `wiretappp_capture_status` | `GET /api/capture/status` |
-| `wiretappp_get_settings` | `GET /api/settings` |
 
-完整 HTTP 契约见项目根目录 [`openapi.yaml`](../openapi.yaml)。
+| Tool                       | 对应 API                    |
+| -------------------------- | ------------------------- |
+| `wiretappp_health`         | `GET /api/health`         |
+| `wiretappp_stats`          | `GET /api/stats`          |
+| `wiretappp_capture_status` | `GET /api/capture/status` |
+| `wiretappp_get_settings`   | `GET /api/settings`       |
+
+
+完整 HTTP 契约见项目根目录 `[openapi.yaml](../openapi.yaml)`。
 
 ## Agent 推荐工作流
 
-1. **`wiretappp_health`** — 确认 API 可用
-2. **`wiretappp_list_projects`** — 确定 `project_id`
-3. **`wiretappp_recon_project`** — 首轮攻击面摸底（hosts + Top 端点 + sitemap 摘要）
-4. **`wiretappp_list_endpoints`** / **`wiretappp_sitemap`** / **`wiretappp_whats_new`** — 深入枚举或发现新路径
-5. **`wiretappp_describe_endpoint`** — 查看脱敏样本（含 status_codes、auth_headers、参数名）
-6. 仅在需要完整复现请求时，才使用 **`wiretappp_query_raw_packets`**
+1. `**wiretappp_health**` — 确认 API 可用
+2. `**wiretappp_list_projects**` — 确定 `project_id`
+3. `**wiretappp_recon_project**` — 首轮攻击面摸底（hosts + Top 端点 + sitemap 摘要）
+4. `**wiretappp_list_endpoints**` / `**wiretappp_sitemap**` / `**wiretappp_whats_new**` — 深入枚举或发现新路径
+5. `**wiretappp_describe_endpoint**` — 查看脱敏样本（含 status_codes、auth_headers、参数名）
+6. 仅在需要完整复现请求时，才使用 `**wiretappp_query_raw_packets**`
 
 端点 `fingerprint` 即 `unique_key`（MD5），在 describe 与 raw 查询中通用。
 
@@ -108,7 +118,7 @@ Go 实现的 [Model Context Protocol](https://modelcontextprotocol.io/) 服务�
 
 请按顺序执行：
 1. wiretappp_health 确认 API 可用
-2. wiretappp_list_projects 列出项目，选定 project_id=1（若名称不符请告诉我）
+2. wiretappp_list_projects 列出项目
 3. wiretappp_recon_project(project_id=1, top=30) 获取攻击面概览
 4. 根据 recon 结果，用 wiretappp_list_endpoints 搜索可疑端点（如 method=POST、path_contains=admin、q=upload）
 
@@ -207,4 +217,5 @@ WIRETAPPP MCP 只读。请检查 wiretappp_capture_status 和 wiretappp_stats，
 
 - 日志输出到 **stderr**（stdout 保留给 MCP JSON-RPC）
 - MCP 连接时通过 `Instructions` 字段向 Agent 注入只读约束与推荐工作流
-- 功能变更时须同步更新 `openapi.yaml`、本文档与 `mcp/main.go`，并执行 `./manage.sh mcp`（见 [`AGENT.md`](../AGENT.md) §3.3）
+- 功能变更时须同步更新 `openapi.yaml`、本文档与 `mcp/main.go`，并执行 `./manage.sh mcp`（见 `[AGENT.md](../AGENT.md)` §3.3）
+
