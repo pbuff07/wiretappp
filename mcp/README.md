@@ -25,21 +25,43 @@ Go 实现的 [Model Context Protocol](https://modelcontextprotocol.io/) 服务�
 
 ## 环境变量
 
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `WIRETAPPP_API_URL` | `http://127.0.0.1:18760` | WIRETAPPP API Base URL；仅通过此环境变量配置，**二进制无命令行参数** |
 
-| 变量                  | 默认值                      | 说明                     |
-| ------------------- | ------------------------ | ---------------------- |
-| `WIRETAPPP_API_URL` | `http://127.0.0.1:18760` | WIRETAPPP API Base URL |
+## Agent 客户端配置
 
+WIRETAPPP MCP 使用 **stdio** 传输：客户端启动 `wiretappp-mcp` 子进程，经 stdin/stdout 交换 JSON-RPC。使用前须先编译二进制：
 
-## Cursor 配置
+```bash
+./manage.sh mcp
+# 产物：mcp/wiretappp-mcp
+```
 
-在 Cursor Settings → MCP 中添加（路径改为本机绝对路径）：
+配置要点（各客户端通用）：
+
+| 字段 | 是否必填 | 说明 |
+| --- | --- | --- |
+| `command` | 必填 | **`wiretappp-mcp` 的绝对路径**（相对路径可能导致启动失败） |
+| `args` | 否 | 本服务**不需要**；留空或省略即可 |
+| `env.WIRETAPPP_API_URL` | 否 | 省略时使用默认 `http://127.0.0.1:18760` |
+
+将下方示例中的 `/path/to/wiretappp` 替换为本机仓库绝对路径，例如 macOS：`/Users/you/PycharmProjects/wiretappp`。
+
+### Cursor
+
+配置文件（二选一，可并存；同名时项目级优先）：
+
+| 作用域 | 路径 |
+| --- | --- |
+| 项目级 | `<repo>/.cursor/mcp.json` |
+| 全局 | `~/.cursor/mcp.json` |
 
 ```json
 {
   "mcpServers": {
     "wiretappp": {
-      "command": "/绝对路径/wiretappp/mcp/wiretappp-mcp",
+      "command": "/path/to/wiretappp/mcp/wiretappp-mcp",
       "env": {
         "WIRETAPPP_API_URL": "http://127.0.0.1:18760"
       }
@@ -48,18 +70,118 @@ Go 实现的 [Model Context Protocol](https://modelcontextprotocol.io/) 服务�
 }
 ```
 
+保存后**完全重启 Cursor**（或 Developer: Reload Window），在 **Settings → MCP** 中确认 `wiretappp` 为 Connected。
+
+也可在 Cursor Settings → MCP → Add new MCP server 中填写相同 `command` 与 `env`（UI 会写入上述 json 文件）。
+
+### Claude Desktop
+
+配置文件路径：
+
+| 系统 | 路径 |
+| --- | --- |
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+
+在 Claude Desktop 中：**Settings → Developer → Edit Config** 可打开/创建该文件。
+
+```json
+{
+  "mcpServers": {
+    "wiretappp": {
+      "command": "/path/to/wiretappp/mcp/wiretappp-mcp",
+      "env": {
+        "WIRETAPPP_API_URL": "http://127.0.0.1:18760"
+      }
+    }
+  }
+}
+```
+
+Windows 示例（路径中的 `\` 须写成 `\\`）：
+
+```json
+{
+  "mcpServers": {
+    "wiretappp": {
+      "command": "C:\\Users\\you\\wiretappp\\mcp\\wiretappp-mcp.exe",
+      "env": {
+        "WIRETAPPP_API_URL": "http://127.0.0.1:18760"
+      }
+    }
+  }
+}
+```
+
+保存后**完全退出并重新打开** Claude Desktop（仅刷新窗口不会重载 MCP）。
+
+### Claude Code（CLI）
+
+**方式 A — 项目根 `.mcp.json`（可提交给团队）：**
+
+```json
+{
+  "mcpServers": {
+    "wiretappp": {
+      "type": "stdio",
+      "command": "/path/to/wiretappp/mcp/wiretappp-mcp",
+      "env": {
+        "WIRETAPPP_API_URL": "http://127.0.0.1:18760"
+      }
+    }
+  }
+}
+```
+
+项目级 MCP 默认需人工批准。在 `.claude/settings.local.json` 中启用（该文件通常 gitignore，仅本机生效）：
+
+```json
+{
+  "enabledMcpjsonServers": ["wiretappp"]
+}
+```
+
+或在 `.claude/settings.json` 中设置 `"enableAllProjectMcpServers": true`（信任整个项目的 MCP 定义时使用）。
+
+**方式 B — CLI 添加（写入 `~/.claude.json` 或项目配置）：**
+
+```bash
+claude mcp add --transport stdio --scope project \
+  --env WIRETAPPP_API_URL=http://127.0.0.1:18760 \
+  wiretappp -- /path/to/wiretappp/mcp/wiretappp-mcp
+```
+
+验证：
+
+```bash
+claude mcp list
+# 会话内也可执行 /mcp 查看连接状态
+```
+
+### 验证 MCP 是否可用
+
+1. 确认 WIRETAPPP API 已运行：`curl -s http://127.0.0.1:18760/api/health`
+2. 确认二进制可执行：`/path/to/wiretappp/mcp/wiretappp-mcp`（启动后无输出属正常，Ctrl+C 退出；若 panic 请重新 `./manage.sh mcp`）
+3. 在 Agent 对话中让其调用 `wiretappp_health` 或 `wiretappp_list_projects`
+
+常见失败原因：
+
+- `command` 使用了相对路径或未编译二进制
+- WIRETAPPP API 未启动（MCP 进程正常但 tool 调用会报 connection refused）
+- 修改配置后未重启客户端
+
 ## 提供的 Tools（只读）
 
 ### Recon — 渗透分析首选
 
 
-| Tool                              | 对应 API                        | 说明                                     |
-| --------------------------------- | ----------------------------- | -------------------------------------- |
-| `**wiretappp_recon_project**`     | `GET /api/recon`              | 项目一键 recon：hosts + Top 端点 + sitemap 摘要 |
-| `**wiretappp_list_endpoints**`    | `GET /api/endpoints`          | 结构化端点目录（API 地图），支持搜索与过滤                |
-| `**wiretappp_describe_endpoint**` | `GET /api/endpoints/describe` | 端点详情 + 脱敏样本（status_codes、auth_headers） |
-| `**wiretappp_sitemap**`           | `GET /api/sitemap`            | Host → Method → Path 站点地图              |
-| `**wiretappp_whats_new**`         | `GET /api/endpoints/new`      | 自某时间以来新出现的端点                           |
+| Tool | 对应 API | 说明 |
+| --- | --- | --- |
+| **`wiretappp_recon_project`** | `GET /api/recon` | 项目一键 recon：hosts + Top 端点 + sitemap 摘要 |
+| **`wiretappp_list_endpoints`** | `GET /api/endpoints` | 结构化端点目录（API 地图），支持搜索与过滤 |
+| **`wiretappp_describe_endpoint`** | `GET /api/endpoints/describe` | 端点详情 + 脱敏样本（status_codes、auth_headers） |
+| **`wiretappp_sitemap`** | `GET /api/sitemap` | Host → Method → Path 站点地图 |
+| **`wiretappp_whats_new`** | `GET /api/endpoints/new` | 自某时间以来新出现的端点 |
 
 
 ### 流量明细 — 次选
@@ -98,12 +220,12 @@ Go 实现的 [Model Context Protocol](https://modelcontextprotocol.io/) 服务�
 
 ## Agent 推荐工作流
 
-1. `**wiretappp_health**` — 确认 API 可用
-2. `**wiretappp_list_projects**` — 确定 `project_id`
-3. `**wiretappp_recon_project**` — 首轮攻击面摸底（hosts + Top 端点 + sitemap 摘要）
-4. `**wiretappp_list_endpoints**` / `**wiretappp_sitemap**` / `**wiretappp_whats_new**` — 深入枚举或发现新路径
-5. `**wiretappp_describe_endpoint**` — 查看脱敏样本（含 status_codes、auth_headers、参数名）
-6. 仅在需要完整复现请求时，才使用 `**wiretappp_query_raw_packets**`
+1. **`wiretappp_health`** — 确认 API 可用
+2. **`wiretappp_list_projects`** — 确定 `project_id`
+3. **`wiretappp_recon_project`** — 首轮攻击面摸底（hosts + Top 端点 + sitemap 摘要）
+4. **`wiretappp_list_endpoints`** / **`wiretappp_sitemap`** / **`wiretappp_whats_new`** — 深入枚举或发现新路径
+5. **`wiretappp_describe_endpoint`** — 查看脱敏样本（含 status_codes、auth_headers、参数名）
+6. 仅在需要完整复现请求时，才使用 **`wiretappp_query_raw_packets`**
 
 端点 `fingerprint` 即 `unique_key`（MD5），在 describe 与 raw 查询中通用。
 
