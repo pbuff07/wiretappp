@@ -7,6 +7,7 @@ import math
 import shutil
 import subprocess
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 try:
@@ -23,19 +24,70 @@ BUILD_DIR = ROOT / "build"
 ASSETS_DIR = ROOT / "assets"
 SOURCE_LOGO = ASSETS_DIR / "logo.png"
 
+# Superellipse exponent — 4~5 reads as a modern squircle on taskbars/docks.
+ICON_SQUIRCLE_N = 4.6
+# Inset before drawing the dark panel so the glyph breathes at 16–32 px.
+ICON_CONTENT_INSET_RATIO = 0.055
+# CSS / UI hint (~Apple continuous corner).
+ICON_CSS_RADIUS_RATIO = 0.225
+
 BG = (7, 9, 7)
 ACCENT = (214, 255, 74)
 ACCENT_DIM = (143, 181, 42)
 RING = (143, 181, 42, 90)
 
 
+@lru_cache(maxsize=32)
+def squircle_mask(size: int) -> Image.Image:
+    """Superellipse silhouette used for dock / taskbar / favicon exports."""
+    mask = Image.new("L", (size, size), 0)
+    px = mask.load()
+    center = (size - 1) / 2.0
+    radius = center
+    n = ICON_SQUIRCLE_N
+    for y in range(size):
+        ny = abs(y - center) / radius
+        ny_n = ny**n
+        for x in range(size):
+            nx = abs(x - center) / radius
+            if nx**n + ny_n <= 1.0:
+                px[x, y] = 255
+    return mask
+
+
+def apply_icon_mask(img: Image.Image) -> Image.Image:
+    size = img.size[0]
+    mask = squircle_mask(size)
+    out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    out.paste(img, (0, 0), mask)
+    return out
+
+
 def draw_logo(size: int) -> Image.Image:
-    img = Image.new("RGBA", (size, size), BG + (255,))
-    draw = ImageDraw.Draw(img)
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     cx = cy = size // 2
-    outer = int(size * 0.42)
-    mid = int(size * 0.30)
-    inner = int(size * 0.18)
+    outer = int(size * 0.40)
+    mid = int(size * 0.28)
+    inner = int(size * 0.17)
+    inset = max(1, int(size * ICON_CONTENT_INSET_RATIO))
+
+    panel = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    panel.paste(BG + (255,), (0, 0), squircle_mask(size))
+    img = Image.alpha_composite(img, panel)
+
+    # Subtle rim — keeps the round silhouette readable on dark taskbars.
+    rim = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    rim_draw = ImageDraw.Draw(rim)
+    rim_width = max(1, size // 180)
+    rim_inset = inset + rim_width
+    rim_draw.rounded_rectangle(
+        (rim_inset, rim_inset, size - rim_inset, size - rim_inset),
+        radius=int(size * ICON_CSS_RADIUS_RATIO),
+        outline=ACCENT_DIM + (110,),
+        width=rim_width,
+    )
+    img = Image.alpha_composite(img, rim)
+    draw = ImageDraw.Draw(img)
 
     for radius, width, color in (
         (outer, max(2, size // 64), ACCENT_DIM + (180,)),
@@ -58,6 +110,7 @@ def draw_logo(size: int) -> Image.Image:
         y = cy + int(math.sin(angle) * length)
         sdraw.line((cx, cy, x, y), fill=ACCENT + (alpha,), width=max(2, size // 128))
     img = Image.alpha_composite(img, sweep)
+    draw = ImageDraw.Draw(img)
 
     node_r = max(3, size // 48)
     for angle_deg in (35, 145, 260):
@@ -74,30 +127,22 @@ def draw_logo(size: int) -> Image.Image:
         (cx - node_r, cy - node_r, cx + node_r, cy + node_r),
         fill=ACCENT,
     )
-
-    pad = size // 10
-    draw.rounded_rectangle(
-        (pad, pad, size - pad, size - pad),
-        radius=size // 8,
-        outline=ACCENT_DIM + (100,),
-        width=max(1, size // 128),
-    )
-    return img
+    return apply_icon_mask(img)
 
 
 def ensure_source_logo() -> Image.Image:
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
-    if SOURCE_LOGO.exists():
-        return Image.open(SOURCE_LOGO).convert("RGBA")
     master = draw_logo(1024)
     master.save(SOURCE_LOGO, format="PNG")
     return master
 
 
 def render_logo(size: int, source: Image.Image) -> Image.Image:
-    if source.size == (size, size):
-        return source.copy()
-    return source.resize((size, size), Image.Resampling.LANCZOS)
+    if source.size != (size, size):
+        source = source.resize((size, size), Image.Resampling.LANCZOS)
+    else:
+        source = source.copy()
+    return apply_icon_mask(source)
 
 
 def write_png(path: Path, size: int, source: Image.Image) -> None:
@@ -151,6 +196,11 @@ def sync_frontend_assets(source: Image.Image) -> None:
     public_dir = ROOT.parent / "frontend" / "public"
     public_dir.mkdir(parents=True, exist_ok=True)
     render_logo(1024, source).save(public_dir / "logo.png", format="PNG")
+    for favicon_size in (32, 48):
+        render_logo(favicon_size, source).save(
+            public_dir / f"favicon-{favicon_size}.png",
+            format="PNG",
+        )
     render_logo(32, source).save(public_dir / "favicon.png", format="PNG")
 
 
@@ -165,7 +215,7 @@ def main() -> None:
     sync_frontend_assets(source)
 
     print(
-        "[icons] source:",
+        "[icons] squircle icons:",
         SOURCE_LOGO,
         "-> build/icon.{png,icns,ico}, frontend/public/{logo,favicon}.png",
     )

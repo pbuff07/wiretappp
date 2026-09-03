@@ -195,7 +195,7 @@ onUnmounted(() => {
 .brand-logo {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
+  border-radius: 23%;
   flex: 0 0 auto;
   box-shadow: 0 0 18px var(--radar-glow);
 }
