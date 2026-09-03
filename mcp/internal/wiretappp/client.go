@@ -42,41 +42,6 @@ func (c *Client) Get(path string, query url.Values) (json.RawMessage, error) {
 	return c.do(req)
 }
 
-func (c *Client) Post(path string, body any) (json.RawMessage, error) {
-	return c.sendJSON(http.MethodPost, path, body)
-}
-
-func (c *Client) Put(path string, body any) (json.RawMessage, error) {
-	return c.sendJSON(http.MethodPut, path, body)
-}
-
-func (c *Client) Delete(path string) (json.RawMessage, error) {
-	req, err := http.NewRequest(http.MethodDelete, c.BaseURL+path, nil)
-	if err != nil {
-		return nil, err
-	}
-	return c.do(req)
-}
-
-func (c *Client) sendJSON(method, path string, body any) (json.RawMessage, error) {
-	var reader io.Reader
-	if body != nil {
-		payload, err := json.Marshal(body)
-		if err != nil {
-			return nil, err
-		}
-		reader = bytes.NewReader(payload)
-	}
-	req, err := http.NewRequest(method, c.BaseURL+path, reader)
-	if err != nil {
-		return nil, err
-	}
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	return c.do(req)
-}
-
 func (c *Client) do(req *http.Request) (json.RawMessage, error) {
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {

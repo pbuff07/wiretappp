@@ -29,10 +29,6 @@ func boolProp(desc string) *jsonschema.Schema {
 	return &jsonschema.Schema{Type: "boolean", Description: desc}
 }
 
-func anyObjectProp(desc string) *jsonschema.Schema {
-	return &jsonschema.Schema{Type: "object", Description: desc}
-}
-
 var (
 	schemaEmpty = emptyObjectSchema()
 
@@ -50,7 +46,7 @@ var (
 	})
 
 	schemaRawPackets = objectSchema(map[string]*jsonschema.Schema{
-		"unique_key":  strProp("端点 MD5 指纹（必填）"),
+		"unique_key":  strProp("端点 MD5 指纹（与 list_endpoints 返回的 fingerprint 相同）"),
 		"host":        strProp("Host"),
 		"start":       strProp("开始时间（UTC+8，ISO8601）"),
 		"end":         strProp("结束时间（UTC+8，ISO8601）"),
@@ -59,17 +55,9 @@ var (
 		"project_id":  intProp("项目 ID"),
 	}, "unique_key")
 
-	schemaUpdateSettings = objectSchema(map[string]*jsonschema.Schema{
-		"body": anyObjectProp("配置 JSON 对象，字段均可选（listen_host、listen_port、static_suffixes、max_body_bytes）"),
-	}, "body")
-
 	schemaProjectIDRequired = objectSchema(map[string]*jsonschema.Schema{
 		"project_id": intProp("项目 ID"),
 	}, "project_id")
-
-	schemaCreateProject = objectSchema(map[string]*jsonschema.Schema{
-		"body": anyObjectProp("项目 JSON：{name, domains[]}"),
-	}, "body")
 
 	schemaListEndpoints = objectSchema(map[string]*jsonschema.Schema{
 		"project_id":    intProp("项目 ID"),
@@ -84,10 +72,10 @@ var (
 	})
 
 	schemaDescribeEndpoint = objectSchema(map[string]*jsonschema.Schema{
-		"fingerprint":  strProp("端点 MD5 指纹"),
+		"fingerprint":  strProp("端点 MD5 指纹（来自 list_endpoints / recon）"),
 		"host":         strProp("Host"),
 		"project_id":   intProp("项目 ID"),
-		"include_raw":  boolProp("是否返回未脱敏 raw_packet"),
+		"include_raw":  boolProp("默认 false（脱敏样本）；true 时返回完整 raw_packet"),
 	}, "fingerprint", "host")
 
 	schemaSitemap = objectSchema(map[string]*jsonschema.Schema{
