@@ -21,6 +21,7 @@ let backendProc = null;
 let viteProc = null;
 let startedBackend = false;
 let startedVite = false;
+let cachedAppIcon = null;
 
 function wiretapppHome() {
   if (process.env.WIRETAPPP_HOME) {
@@ -367,22 +368,44 @@ function stopVite() {
 }
 
 function appIconPath() {
+  if (process.platform === "darwin") {
+    const icns = path.join(__dirname, "build", "icon.icns");
+    if (fs.existsSync(icns)) return icns;
+  }
+  if (process.platform === "win32") {
+    const ico = path.join(__dirname, "build", "icon.ico");
+    if (fs.existsSync(ico)) return ico;
+  }
   const logo = path.join(__dirname, "assets", "logo.png");
   if (fs.existsSync(logo)) return logo;
-  const built = path.join(__dirname, "build", process.platform === "win32" ? "icon.ico" : "icon.png");
+  const built = path.join(__dirname, "build", "icon.png");
   if (fs.existsSync(built)) return built;
   return undefined;
 }
 
 function applyAppIcon() {
+  if (cachedAppIcon && !cachedAppIcon.isEmpty()) {
+    if (process.platform === "darwin" && app.dock) {
+      app.dock.setIcon(cachedAppIcon);
+    }
+    return cachedAppIcon;
+  }
   const iconFile = appIconPath();
   if (!iconFile) return undefined;
   const icon = nativeImage.createFromPath(iconFile);
   if (icon.isEmpty()) return undefined;
-  if (process.platform === "darwin" && app.dock) {
-    app.dock.setIcon(icon);
+  cachedAppIcon = icon;
+  if (process.platform === "darwin") {
+    app.setName("WIRETAPPP");
+    if (app.dock) {
+      app.dock.setIcon(icon);
+    }
   }
   return icon;
+}
+
+function bootstrapAppChrome() {
+  applyAppIcon();
 }
 
 function createWindow(loadUrl) {
@@ -419,6 +442,7 @@ function createWindow(loadUrl) {
 }
 
 app.whenReady().then(async () => {
+  bootstrapAppChrome();
   try {
     const home = ensureUserLayout();
     await ensureBackend(home);
@@ -451,6 +475,7 @@ app.on("before-quit", () => {
 
 app.on("activate", async () => {
   if (mainWindow) return;
+  bootstrapAppChrome();
   try {
     const home = ensureUserLayout();
     await ensureBackend(home);

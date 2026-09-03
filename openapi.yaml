@@ -638,11 +638,14 @@ components:
           type: string
         listen_port:
           type: integer
+        mitm_confdir:
+          type: string
+          description: mitmproxy confdir，CA 与密钥持久化目录
         ca_cert_ready:
           type: boolean
         ca_cert_path:
           type: string
-          nullable: true
+          description: mitm CA 证书 PEM 文件的完整路径（固定于用户目录，可长期复用）
         static_suffixes:
           type: array
           items:
@@ -665,6 +668,14 @@ components:
             type: string
         max_body_bytes:
           type: integer
+        mitm_confdir:
+          type: string
+          description: mitmproxy confdir，CA 与密钥持久化目录
+        ca_cert_ready:
+          type: boolean
+        ca_cert_path:
+          type: string
+          description: mitm CA 证书 PEM 文件的完整路径
 
     SettingsUpdate:
       type: object

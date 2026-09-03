@@ -9,7 +9,7 @@ from backend.config import load_config
 from backend.database import init_db
 from backend.mitm_manager import stop_capture
 from backend.network import api_urls
-from backend.paths import MITM_CONFDIR, ensure_dirs
+from backend.paths import MITM_CONFDIR, ca_cert_pem_path, ensure_dirs
 from backend.routers.api import router as api_router
 from backend.routers.projects import router as projects_router
 from backend.routers.recon import router as recon_router
@@ -55,7 +55,7 @@ def health():
 
 @app.get("/api/ca-cert")
 def ca_cert():
-    path = MITM_CONFDIR / "mitmproxy-ca-cert.pem"
+    path = ca_cert_pem_path()
     if not path.exists():
         return JSONResponse(
             {"ready": False, "detail": "CA 尚未生成，请先启动捕获"},

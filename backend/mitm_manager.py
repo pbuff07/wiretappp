@@ -13,6 +13,7 @@ from backend.paths import (
     MITM_PID_FILE,
     PAUSE_FLAG,
     ROOT,
+    ca_cert_pem_path,
     ensure_dirs,
 )
 
@@ -63,15 +64,16 @@ def capture_state() -> dict:
         status = "paused"
     else:
         status = "running"
-    ca_cert = MITM_CONFDIR / "mitmproxy-ca-cert.pem"
+    ca_cert = ca_cert_pem_path()
     return {
         "status": status,
         "paused": paused,
         "pid": pid,
         "listen_host": cfg["listen_host"],
         "listen_port": cfg["listen_port"],
+        "mitm_confdir": str(MITM_CONFDIR),
         "ca_cert_ready": ca_cert.exists(),
-        "ca_cert_path": str(ca_cert) if ca_cert.exists() else None,
+        "ca_cert_path": str(ca_cert),
         "static_suffixes": cfg["static_suffixes"],
     }
 

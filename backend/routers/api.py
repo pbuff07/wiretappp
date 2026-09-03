@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from backend.config import load_config, save_config
 from backend import mitm_manager
+from backend.paths import MITM_CONFDIR, ca_cert_pem_path
 
 router = APIRouter(prefix="/api", tags=["capture"])
 
@@ -57,6 +58,7 @@ def capture_stop():
 @router.get("/settings")
 def get_settings():
     cfg = load_config()
+    ca_cert = ca_cert_pem_path()
     return {
         "listen_host": cfg["listen_host"],
         "listen_port": cfg["listen_port"],
@@ -64,6 +66,9 @@ def get_settings():
         "api_port": cfg["api_port"],
         "static_suffixes": cfg["static_suffixes"],
         "max_body_bytes": cfg["max_body_bytes"],
+        "mitm_confdir": str(MITM_CONFDIR),
+        "ca_cert_ready": ca_cert.exists(),
+        "ca_cert_path": str(ca_cert),
     }
 
 

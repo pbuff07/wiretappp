@@ -29,9 +29,20 @@
           </div>
           <div>
             <dt>CA 证书</dt>
-            <dd>{{ status.ca_cert_ready ? "已就绪" : "未生成" }}</dd>
+            <dd>{{ status.ca_cert_ready ? "已就绪（可长期复用）" : "未生成（启动捕获后自动创建）" }}</dd>
+          </div>
+          <div class="path-row">
+            <dt>证书路径</dt>
+            <dd><code class="path-code">{{ status.ca_cert_path || "—" }}</code></dd>
+          </div>
+          <div class="path-row">
+            <dt>mitm 目录</dt>
+            <dd><code class="path-code">{{ status.mitm_confdir || "—" }}</code></dd>
           </div>
         </dl>
+        <p class="hint cert-hint">
+          证书持久保存在用户目录，不随项目路径变化。在 macOS 钥匙串中信任一次后，后续启动无需重复安装。
+        </p>
         <div class="btn-row">
           <button class="btn lime" :disabled="busy || status.status === 'running'" @click="onStart">
             启动捕获
@@ -460,6 +471,21 @@ onUnmounted(() => {
   grid-template-columns: 88px 1fr;
   gap: 8px;
   font-size: var(--font-size-sm);
+}
+
+.meta-list .path-row {
+  grid-template-columns: 88px 1fr;
+}
+
+.path-code {
+  display: block;
+  word-break: break-all;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.cert-hint {
+  margin-top: -4px;
 }
 
 .meta-list dt {

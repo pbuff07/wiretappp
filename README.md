@@ -93,9 +93,19 @@ Electron 桌面客户端加载 Vite 开发页面（`127.0.0.1:5173`），后端 
 
 1. 执行 `./manage.sh dev` 启动 Electron 客户端。
 2. 在项目侧边栏或系统设置中 **启动捕获**，然后点击 **下载 mitm CA 证书**，或访问 `GET /api/ca-cert`。
-3. **macOS**：钥匙串访问 → 导入证书 → 对「安全套接字层 (SSL)」设为 **始终信任**。
+3. **macOS**：钥匙串访问 → 导入证书 → 对「安全套接字层 (SSL)」设为 **始终信任**（**只需信任一次**）。
 4. **Chrome / Edge**：系统代理设置为 `127.0.0.1:8080`（HTTP 与 HTTPS 均走代理）。
 5. 访问目标站点，业务 API 流量会自动入库。
+
+CA 证书与 mitm 密钥持久保存在用户目录（不随项目路径变化）：
+
+| 系统 | 证书路径 |
+| --- | --- |
+| macOS | `~/.wiretappp/data/mitmproxy/mitmproxy-ca-cert.pem` |
+| Linux | `$XDG_CONFIG_HOME/wiretappp/data/mitmproxy/mitmproxy-ca-cert.pem` |
+| Windows | `%APPDATA%\wiretappp\data\mitmproxy\mitmproxy-ca-cert.pem` |
+
+系统设置页会显示完整路径；首次启动捕获后生成，之后在系统中信任一次即可长期复用。
 
 > 仅用于授权范围内的本机渗透/调试场景，请勿用于未授权流量拦截。
 
@@ -504,8 +514,9 @@ GET /api/capture/status
   "pid": 86987,
   "listen_host": "127.0.0.1",
   "listen_port": 8080,
+  "mitm_confdir": "/Users/you/.wiretappp/data/mitmproxy",
   "ca_cert_ready": true,
-  "ca_cert_path": "/path/to/data/mitmproxy/mitmproxy-ca-cert.pem",
+  "ca_cert_path": "/Users/you/.wiretappp/data/mitmproxy/mitmproxy-ca-cert.pem",
   "static_suffixes": [".js", ".css", ".png"]
 }
 ```
@@ -515,6 +526,8 @@ GET /api/capture/status
 | `status` | `running` 捕获中 / `paused` 已暂停 / `stopped` 未运行 |
 | `paused` | 是否处于暂停入库状态 |
 | `pid` | mitm 进程 PID，未运行时为 `null` |
+| `mitm_confdir` | mitmproxy confdir，CA 持久化目录 |
+| `ca_cert_path` | CA 证书 PEM 完整路径（固定于用户目录） |
 
 ---
 
